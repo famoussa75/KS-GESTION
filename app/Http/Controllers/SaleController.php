@@ -92,7 +92,7 @@ class SaleController extends Controller
         $client = ! empty($data['client_id']) ? Client::findOrFail($data['client_id']) : null;
         $this->validateOwnership($subsidiary, $client, $data['lines']);
 
-        $sale = DB::transaction(function () use ($data, $subsidiary, $numbering, $request, $intent) {
+        $sale = DB::transaction(function () use ($data, $subsidiary, $numbering, $request, $intent, $stock, $invoices) {
             $totals = $this->calculateLines($data['lines']);
             $docType = match ($intent) {
                 SaleIntent::QUOTE => DocumentType::PROFORMA,
@@ -118,16 +118,18 @@ class SaleController extends Controller
                 'created_by' => $request->user()->id,
             ]);
             $this->persistLines($sale, $totals['lines']);
+
+            // Vente directe : tout ou rien. Si le stock manque, ni vente, ni numéro, ni facture.
+            if ($intent === SaleIntent::DIRECT) {
+                $sale->update(['status' => SaleStatus::CONFIRMED->value, 'confirmed_at' => now()]);
+                $stock->sellSale($sale, $request->user());
+                $invoice = $invoices->createInvoiceFromSale($sale, $request->user()->id);
+                $invoices->recordPayment($invoice, (float) $invoice->total, $request->user()->id);
+                $sale->refresh();
+            }
+
             return $sale;
         });
-
-        if ($intent === SaleIntent::DIRECT) {
-            $sale->update(['status' => SaleStatus::CONFIRMED->value, 'confirmed_at' => now()]);
-            $stock->sellSale($sale, $request->user());
-            $invoice = $invoices->createInvoiceFromSale($sale, $request->user()->id);
-            $invoices->recordPayment($invoice, (float) $invoice->total, $request->user()->id);
-            $sale->refresh();
-        }
 
         $audit->log('sale.created', $sale, $subsidiary);
         return redirect()->route('sales.show', $sale)->with('success', $this->createdMessage($intent));
@@ -135,6 +137,7 @@ class SaleController extends Controller
 
     public function edit(Sale $sale): View
     {
+        $this->authorizeSale(auth()->user(), $sale);
         if (! $sale->isEditable()) abort(409, 'Cette vente ne peut plus être modifiée à ce stade.');
         $sale->load('lines');
         return view('sales.form', [
@@ -230,6 +233,26 @@ class SaleController extends Controller
         return back()->with('success', 'Vente passée au statut : '.$sale->status->label().'.');
     }
 
+    public function cancel(Request $request, Sale $sale, StockService $stock, AuditService $audit): RedirectResponse
+    {
+        $this->authorizeSale($request->user(), $sale);
+
+        DB::transaction(function () use ($request, $sale, $stock) {
+            $locked = Sale::query()->whereKey($sale->id)->lockForUpdate()->firstOrFail();
+            if (! $locked->isCancellable()) {
+                throw ValidationException::withMessages(['status' => 'Cette vente ne peut plus être annulée.']);
+            }
+            if ($locked->intent === SaleIntent::ORDER) {
+                $stock->releaseSale($locked, $request->user());
+            }
+            $locked->update(['status' => SaleStatus::CANCELLED->value]);
+        });
+
+        $sale->refresh();
+        $audit->log('sale.cancelled', $sale, $sale->subsidiary);
+        return back()->with('success', 'Annulé. Les réservations de stock éventuelles ont été libérées.');
+    }
+
     public function sendToClient(Sale $sale, AuditService $audit): RedirectResponse
     {
         $this->authorizeSale(auth()->user(), $sale);
@@ -293,6 +316,8 @@ class SaleController extends Controller
 
     private function authorizeSale(User $user, Sale $sale): void
     {
+        app(SubsidiaryAccess::class)->assert($user, $sale->subsidiary_id);
+
         if ($sale->intent === SaleIntent::DIRECT) return;
         if ($sale->intent === SaleIntent::ORDER && ($user->isAdmin() || $user->isCashier())) return;
         if ($user->isAdmin()) return;

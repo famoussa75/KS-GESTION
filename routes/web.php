@@ -21,9 +21,9 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::get('/documents/devis/{sale}', [SaleController::class, 'publicShow'])
-    ->middleware('signed')->name('public.proformas.show');
+    ->middleware(['signed', 'throttle:60,1'])->name('public.proformas.show');
 Route::get('/documents/facture/{invoice}', [InvoiceController::class, 'publicShow'])
-    ->middleware('signed')->name('public.invoices.show');
+    ->middleware(['signed', 'throttle:60,1'])->name('public.invoices.show');
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
@@ -79,6 +79,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/ventes/{sale}', [SaleController::class, 'show'])->name('sales.show');
         Route::get('/ventes/{sale}/modifier', [SaleController::class, 'edit'])->name('sales.edit');
         Route::put('/ventes/{sale}', [SaleController::class, 'update'])->name('sales.update');
+        Route::post('/ventes/{sale}/annuler', [SaleController::class, 'cancel'])->name('sales.cancel');
         Route::post('/ventes/{sale}/avancer', [SaleController::class, 'advance'])->name('sales.advance');
         Route::post('/ventes/{sale}/envoyer', [SaleController::class, 'sendToClient'])->name('sales.send');
         Route::post('/ventes/{sale}/convertir', [SaleController::class, 'convert'])->name('sales.convert');

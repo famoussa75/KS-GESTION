@@ -152,7 +152,7 @@ class SaleTest extends TestCase
         $this->assertSame($first->id, $second->id);
     }
 
-    public function test_cashier_can_only_create_direct_sales(): void
+    public function test_cashier_cannot_create_quotes_but_can_sell(): void
     {
         $this->seed();
         $cashier = User::where('email', 'caissier@ks.local')->firstOrFail();
@@ -161,7 +161,8 @@ class SaleTest extends TestCase
 
         $this->actingAs($cashier)->post(route('sales.store'), [
             'subsidiary_id' => $subsidiary->id,
-            'intent' => 'order',
+            'intent' => 'quote',
+            'client_id' => Client::create(['name' => 'Client devis'])->id,
             'issue_date' => now()->toDateString(),
             'lines' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1000]],
         ])->assertForbidden();

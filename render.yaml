@@ -1,0 +1,47 @@
+databases:
+  - name: ks-gestion-db
+    plan: free
+    databaseName: ks_gestion
+    user: ks_gestion
+
+services:
+  - type: web
+    name: ks-gestion
+    runtime: docker
+    plan: free
+    healthCheckPath: /up
+    envVars:
+      - key: APP_NAME
+        value: KS Gestion
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false          # à saisir dans le dashboard (php artisan key:generate --show)
+      - key: KS_ADMIN_PASSWORD
+        sync: false          # mot de passe du compte admin@ks.local créé au premier déploiement
+      - key: APP_TIMEZONE
+        value: Africa/Conakry
+      - key: APP_LOCALE
+        value: fr
+      - key: APP_FALLBACK_LOCALE
+        value: fr
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        fromDatabase:
+          name: ks-gestion-db
+          property: connectionString
+      - key: SESSION_DRIVER
+        value: file
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: MAIL_MAILER
+        value: log
+      - key: RUN_SEED
+        value: "true"

@@ -58,6 +58,14 @@ class UserController extends Controller
             'subsidiaries.*' => ['integer', 'exists:subsidiaries,id'],
         ]);
 
+        $stillAdmin = $data['role'] === UserRole::ADMIN->value && $request->boolean('active');
+        if ($user->isAdmin() && ! $stillAdmin) {
+            $otherAdmins = User::where('role', UserRole::ADMIN->value)->where('active', true)->whereKeyNot($user->id)->count();
+            if ($otherAdmins === 0) {
+                return back()->withErrors(['role' => 'Impossible : il doit rester au moins un administrateur actif.']);
+            }
+        }
+
         $user->name = $data['name'];
         $user->email = $data['email'];
         $user->role = $data['role'];
@@ -65,7 +73,11 @@ class UserController extends Controller
         if (! empty($data['password'])) {
             $user->password = Hash::make($data['password']);
         }
+        $changedSecurity = $user->isDirty(['role', 'active', 'password']);
         $user->save();
+        if ($changedSecurity) {
+            $user->forceFill(['remember_token' => \Illuminate\Support\Str::random(60)])->save();
+        }
         $user->subsidiaries()->sync($data['subsidiaries'] ?? []);
         $audit->log('user.updated', $user);
         return back()->with('success', 'Utilisateur mis à jour.');

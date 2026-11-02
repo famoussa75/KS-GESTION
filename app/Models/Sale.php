@@ -44,6 +44,12 @@ class Sale extends Model
         return in_array($this->status, [SaleStatus::DRAFT, SaleStatus::SENT], true);
     }
 
+    public function isCancellable(): bool
+    {
+        return $this->intent !== SaleIntent::DIRECT
+            && ! in_array($this->status, [SaleStatus::DELIVERED, SaleStatus::INVOICED, SaleStatus::CANCELLED], true);
+    }
+
     public function nextStatus(): ?SaleStatus
     {
         return $this->status->nextFor($this->intent);

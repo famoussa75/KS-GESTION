@@ -20,6 +20,9 @@
     @elseif($sale->intent->value === 'order' && $sale->nextStatus())
         <form method="POST" action="{{ route('sales.advance',$sale) }}" onsubmit="return confirm('Passer la commande à l’étape suivante ?')">@csrf<button class="btn btn-primary">Passer à : {{ $sale->nextStatus()->label() }}</button></form>
     @endif
+    @if($sale->isCancellable())
+        <form method="POST" action="{{ route('sales.cancel',$sale) }}" onsubmit="return confirm('Annuler ? Les réservations de stock seront libérées.')">@csrf<button class="btn btn-secondary">Annuler</button></form>
+    @endif
     @if($sale->invoice)<a class="btn btn-success" href="{{ route('invoices.show',$sale->invoice) }}">Ouvrir la facture {{ $sale->invoice->number }}</a>@endif
     <button class="btn btn-secondary" data-print>Imprimer / PDF</button>
 </div>

@@ -11,6 +11,7 @@ use App\Models\Subsidiary;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -74,18 +75,35 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        $admin = User::updateOrCreate(
-            ['email' => 'admin@ks.local'],
-            ['name' => 'ALMAMY OUSMANE KOBÉLÉ KEITA', 'password' => Hash::make('KSAdmin@2026!'), 'role' => UserRole::ADMIN->value, 'active' => true]
-        );
-        $cashier = User::updateOrCreate(
-            ['email' => 'caissier@ks.local'],
-            ['name' => 'Caissier KS', 'password' => Hash::make('Caisse@2026!'), 'role' => UserRole::CASHIER->value, 'active' => true]
-        );
-        $stockkeeper = User::updateOrCreate(
-            ['email' => 'magasinier@ks.local'],
-            ['name' => 'Magasinier KS', 'password' => Hash::make('Stock@2026!'), 'role' => UserRole::STOCKKEEPER->value, 'active' => true]
-        );
+        // Comptes de démonstration : mots de passe connus en local/test uniquement.
+        // Ailleurs, un mot de passe aléatoire est généré (ou KS_ADMIN_PASSWORD pour l'admin).
+        $demo = app()->environment(['local', 'testing']);
+        $generated = [];
+
+        $make = function (string $email, string $name, UserRole $role, string $known) use ($demo, &$generated) {
+            $user = User::where('email', $email)->first();
+            if ($user) {
+                $user->update(['name' => $name, 'role' => $role->value, 'active' => true]);
+                return $user;
+            }
+            if ($email === 'admin@ks.local' && env('KS_ADMIN_PASSWORD')) {
+                $plain = env('KS_ADMIN_PASSWORD');
+            } elseif ($demo) {
+                $plain = $known;
+            } else {
+                $plain = Str::password(20);
+                $generated[$email] = $plain;
+            }
+            return User::create(['email' => $email, 'name' => $name, 'password' => $plain, 'role' => $role->value, 'active' => true]);
+        };
+
+        $admin = $make('admin@ks.local', 'ALMAMY OUSMANE KOBÉLÉ KEITA', UserRole::ADMIN, 'KSAdmin@2026!');
+        $cashier = $make('caissier@ks.local', 'Caissier KS', UserRole::CASHIER, 'Caisse@2026!');
+        $stockkeeper = $make('magasinier@ks.local', 'Magasinier KS', UserRole::STOCKKEEPER, 'Stock@2026!');
+
+        foreach ($generated as $email => $plain) {
+            $this->command?->warn("Compte créé : {$email} / {$plain} (à noter et changer)");
+        }
 
         $ids = $subsidiaries->pluck('id')->all();
         $admin->subsidiaries()->sync($ids);

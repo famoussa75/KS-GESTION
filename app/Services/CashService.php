@@ -53,6 +53,15 @@ class CashService
                 throw ValidationException::withMessages(['expense_account_id' => 'Sélectionnez un compte SYSCOHADA de charge pour une sortie.']);
             }
 
+            if ($direction === CashDirection::OUT) {
+                $in = (float) $session->movements()->where('direction', CashDirection::IN->value)->sum('amount');
+                $out = (float) $session->movements()->where('direction', CashDirection::OUT->value)->sum('amount');
+                $balance = (float) $session->opening_float + $in - $out;
+                if ($amount - $balance > 0.01) {
+                    throw ValidationException::withMessages(['amount' => 'Solde de caisse insuffisant pour cette sortie (théorique : '.number_format($balance, 0, ',', ' ').').']);
+                }
+            }
+
             $movement = CashMovement::create([
                 'cash_session_id' => $session->id,
                 'expense_account_id' => $expenseAccount?->id,

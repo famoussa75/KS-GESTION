@@ -146,6 +146,43 @@ class StockService
         });
     }
 
+    public function releaseSale(Sale $sale, User $user): void
+    {
+        DB::transaction(function () use ($sale, $user) {
+            $sale->load('lines.product');
+
+            foreach ($sale->lines as $line) {
+                $reservations = StockReservation::query()
+                    ->where('sale_line_id', $line->id)
+                    ->where('status', ReservationStatus::ACTIVE->value)
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($reservations as $reservation) {
+                    $stock = StockItem::query()->where('product_id', $reservation->product_id)->lockForUpdate()->firstOrFail();
+                    $qty = (float) $reservation->quantity;
+                    $stock->reserved_quantity = max(0, (float) $stock->reserved_quantity - $qty);
+                    $stock->save();
+
+                    $batch = null;
+                    if ($reservation->stock_batch_id) {
+                        $batch = StockBatch::query()->whereKey($reservation->stock_batch_id)->lockForUpdate()->firstOrFail();
+                        $batch->reserved_quantity = max(0, (float) $batch->reserved_quantity - $qty);
+                        $batch->save();
+                    }
+
+                    $onHand = (float) $stock->quantity_on_hand;
+                    $this->movement($line->product, $batch, StockMovementType::RELEASE, $qty, $onHand, $onHand, 'Annulation commande '.$sale->number, $user, $sale);
+                    $reservation->update(['status' => ReservationStatus::RELEASED->value]);
+                }
+
+                $this->alerts->refreshProduct($line->product->fresh(['stockItem', 'subsidiary']));
+            }
+
+            $this->audit->log('sale.stock_released', $sale, $sale->subsidiary, ['sale' => $sale->number]);
+        });
+    }
+
     public function sellSale(Sale $sale, User $user): void
     {
         DB::transaction(function () use ($sale, $user) {
@@ -165,7 +202,7 @@ class StockService
                 }
 
                 if ($product->subsidiary->tracks_expiry) {
-                    $this->consumeUnreservedBatches($product, $qty, $reason, $user, $stock, StockMovementType::OUT, $sale);
+                    $this->consumeUnreservedBatches($product, $qty, $reason, $user, $stock, StockMovementType::OUT, $sale, true);
                 } else {
                     $before = (float) $stock->quantity_on_hand;
                     $stock->quantity_on_hand = $before - $qty;
@@ -199,6 +236,7 @@ class StockService
             $batches = StockBatch::query()
                 ->where('product_id', $product->id)
                 ->where('quantity_on_hand', '>', 0)
+                ->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', Carbon::today()->toDateString()))
                 ->orderByRaw('expiry_date IS NULL, expiry_date ASC')
                 ->lockForUpdate()
                 ->get();
@@ -224,12 +262,13 @@ class StockService
         $this->movement($product, null, StockMovementType::RESERVE, $qty, (float) $stock->quantity_on_hand, (float) $stock->quantity_on_hand, 'Réservation commande '.$line->sale->number, $user, $line->sale);
     }
 
-    protected function consumeUnreservedBatches(Product $product, float $quantity, string $reason, User $user, StockItem $stock, StockMovementType $type = StockMovementType::ADJUSTMENT_OUT, ?object $source = null): void
+    protected function consumeUnreservedBatches(Product $product, float $quantity, string $reason, User $user, StockItem $stock, StockMovementType $type = StockMovementType::ADJUSTMENT_OUT, ?object $source = null, bool $excludeExpired = false): void
     {
         $remaining = $quantity;
         $batches = StockBatch::query()
             ->where('product_id', $product->id)
             ->where('quantity_on_hand', '>', 0)
+            ->when($excludeExpired, fn ($q) => $q->where(fn ($w) => $w->whereNull('expiry_date')->orWhere('expiry_date', '>=', Carbon::today()->toDateString())))
             ->orderByRaw('expiry_date IS NULL, expiry_date ASC')
             ->lockForUpdate()->get();
 
