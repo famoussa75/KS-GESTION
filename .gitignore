@@ -22,3 +22,4 @@ yarn-error.log
 /storage/framework/views/*.php
 /storage/app/public/*
 /.claude
+/bootstrap/cache/*.php

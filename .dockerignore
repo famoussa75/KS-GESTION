@@ -7,3 +7,4 @@ storage/framework/cache/data/*
 storage/framework/sessions/*
 storage/framework/views/*
 .claude
+bootstrap/cache/*.php
