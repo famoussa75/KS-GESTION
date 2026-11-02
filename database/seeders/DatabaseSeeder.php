@@ -79,6 +79,9 @@ class DatabaseSeeder extends Seeder
         // Ailleurs, un mot de passe aléatoire est généré et affiché une seule fois.
         $demo = app()->environment(['local', 'testing']);
         $password = function (string $known) use ($demo, &$generated, &$currentEmail) {
+            if ($currentEmail === 'admin@ks.local' && env('KS_ADMIN_PASSWORD')) {
+                return env('KS_ADMIN_PASSWORD');
+            }
             if ($demo) {
                 return $known;
             }
