@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Models\Proforma;
+use App\Models\Sale;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -13,7 +13,7 @@ class ProformaMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public Proforma $proforma, public string $documentUrl) {}
+    public function __construct(public Sale $proforma, public string $documentUrl) {}
 
     public function envelope(): Envelope
     {

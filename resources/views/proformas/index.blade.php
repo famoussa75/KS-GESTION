@@ -1,9 +1,0 @@
-@extends('layouts.app')
-@section('title','Proformas')
-@section('page-title','Factures proforma')
-@section('content')
-<div class="toolbar"><a class="btn btn-primary" href="{{ route('proformas.create') }}">+ Nouvelle proforma</a><span class="spacer"></span><form style="display:flex;gap:8px;flex-wrap:wrap"><select name="subsidiary_id"><option value="">Toutes filiales</option>@foreach($subsidiaries as $s)<option value="{{ $s->id }}" {{ request('subsidiary_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>@endforeach</select><select name="status"><option value="">Tous statuts</option><option value="draft" {{ request('status')==='draft'?'selected':'' }}>Brouillon</option><option value="sent" {{ request('status')==='sent'?'selected':'' }}>Envoyée</option><option value="converted" {{ request('status')==='converted'?'selected':'' }}>Convertie</option></select><input name="q" value="{{ request('q') }}" placeholder="N° ou client"><button class="btn btn-secondary">Filtrer</button></form></div>
-<div class="card"><div class="table-wrap"><table><thead><tr><th>Numéro</th><th>Date</th><th>Filiale</th><th>Client</th><th>Statut</th><th class="text-right">Total</th><th></th></tr></thead><tbody>
-@forelse($proformas as $p)<tr><td><a class="fw-bold" href="{{ route('proformas.show',$p) }}">{{ $p->number }}</a></td><td>{{ $p->issue_date->format('d/m/Y') }}</td><td>{{ $p->subsidiary->name }}</td><td>{{ $p->client->name }}</td><td><span class="badge {{ $p->status->value==='converted'?'badge-success':($p->status->value==='sent'?'badge-blue':'') }}">{{ $p->status->label() }}</span></td><td class="text-right fw-bold">{{ number_format($p->total,0,',',' ') }} GNF</td><td>@if($p->invoice)<a class="btn btn-secondary btn-sm" href="{{ route('invoices.show',$p->invoice) }}">Facture</a>@endif</td></tr>@empty<tr><td colspan="7" class="empty">Aucune proforma.</td></tr>@endforelse
-</tbody></table></div><div class="card-body">{{ $proformas->links() }}</div></div>
-@endsection

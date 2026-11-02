@@ -8,8 +8,6 @@ use App\Models\AccountingAccount;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
 use App\Models\CashSession;
-use App\Models\Invoice;
-use App\Models\InvoicePayment;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -44,30 +42,15 @@ class CashService
         });
     }
 
-    public function addMovement(CashSession $session, CashDirection $direction, float $amount, ?Invoice $invoice, ?AccountingAccount $expenseAccount, ?string $justification, ?string $reference, User $user): CashMovement
+    public function addMovement(CashSession $session, CashDirection $direction, float $amount, ?AccountingAccount $expenseAccount, string $justification, ?string $reference, User $user): CashMovement
     {
-        return DB::transaction(function () use ($session, $direction, $amount, $invoice, $expenseAccount, $justification, $reference, $user) {
+        return DB::transaction(function () use ($session, $direction, $amount, $expenseAccount, $justification, $reference, $user) {
             $session = CashSession::query()->whereKey($session->id)->lockForUpdate()->with('register.subsidiary')->firstOrFail();
             if (! $session->isOpen()) {
                 throw ValidationException::withMessages(['session' => 'Cette caisse est déjà clôturée.']);
             }
-            if (! $invoice && ! trim((string) $justification)) {
-                throw ValidationException::withMessages(['justification' => 'Chaque mouvement doit être lié à une facture ou justifié par un motif.']);
-            }
-            if ($invoice && $direction !== CashDirection::IN) {
-                throw ValidationException::withMessages(['invoice_id' => 'Un règlement de facture est une entrée de caisse.']);
-            }
             if ($direction === CashDirection::OUT && ! $expenseAccount) {
                 throw ValidationException::withMessages(['expense_account_id' => 'Sélectionnez un compte SYSCOHADA de charge pour une sortie.']);
-            }
-            if ($invoice) {
-                $invoice = Invoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
-                if ($invoice->subsidiary_id !== $session->register->subsidiary_id) {
-                    throw ValidationException::withMessages(['invoice_id' => 'La facture ne correspond pas à la filiale de cette caisse.']);
-                }
-                if ($amount - $invoice->outstanding() > 0.01) {
-                    throw ValidationException::withMessages(['amount' => 'Le montant dépasse le solde restant de la facture.']);
-                }
             }
 
             if ($direction === CashDirection::OUT) {
@@ -81,7 +64,6 @@ class CashService
 
             $movement = CashMovement::create([
                 'cash_session_id' => $session->id,
-                'invoice_id' => $invoice?->id,
                 'expense_account_id' => $expenseAccount?->id,
                 'direction' => $direction->value,
                 'amount' => $amount,
@@ -90,15 +72,6 @@ class CashService
                 'created_by' => $user->id,
                 'occurred_at' => now(),
             ]);
-
-            if ($invoice) {
-                InvoicePayment::create([
-                    'invoice_id' => $invoice->id,
-                    'cash_movement_id' => $movement->id,
-                    'amount' => $amount,
-                    'paid_at' => now(),
-                ]);
-            }
 
             $this->accounting->postCashMovement($movement);
             $this->audit->log('cash.movement', $movement, $session->register->subsidiary, ['direction' => $direction->value, 'amount' => $amount]);

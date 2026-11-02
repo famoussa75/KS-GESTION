@@ -7,6 +7,7 @@ use App\Models\AccountingAccount;
 use App\Models\AccountingJournal;
 use App\Models\CashMovement;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\JournalEntry;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -64,6 +65,35 @@ class AccountingService
                     'credit' => $invoice->tax_total,
                 ]);
             }
+
+            $this->assertBalanced($entry);
+            return $entry;
+        });
+    }
+
+    public function postInvoicePayment(InvoicePayment $payment): JournalEntry
+    {
+        return DB::transaction(function () use ($payment) {
+            $payment->loadMissing('invoice.subsidiary');
+            $invoice = $payment->invoice;
+            $journal = $this->journal('CA');
+            $cashAccount = $this->account('571');
+            $clientAccount = $this->account('411');
+
+            $entry = JournalEntry::create([
+                'subsidiary_id' => $invoice->subsidiary_id,
+                'accounting_journal_id' => $journal->id,
+                'entry_date' => $payment->paid_at->toDateString(),
+                'reference' => $invoice->number,
+                'label' => 'Encaissement '.$invoice->number.' — '.$invoice->client_name,
+                'source_type' => InvoicePayment::class,
+                'source_id' => $payment->id,
+                'posted' => true,
+                'created_by' => $invoice->created_by,
+            ]);
+
+            $entry->lines()->create(['accounting_account_id' => $cashAccount->id, 'label' => $entry->label, 'debit' => $payment->amount, 'credit' => 0]);
+            $entry->lines()->create(['accounting_account_id' => $clientAccount->id, 'third_party' => $invoice->client_name, 'label' => $entry->label, 'debit' => 0, 'credit' => $payment->amount]);
 
             $this->assertBalanced($entry);
             return $entry;

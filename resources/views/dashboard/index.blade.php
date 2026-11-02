@@ -10,7 +10,7 @@
     <div class="card metric"><div class="metric-accent"></div><div class="metric-label">Commandes actives</div><div class="metric-value">{{ $pendingOrders }}</div><div class="metric-note">{{ $openCash }} caisse(s) actuellement ouverte(s)</div></div>
 </div>
 <div class="grid grid-2">
-    <div class="card"><div class="card-header"><h3>Alertes opérationnelles</h3><a href="{{ route('stock.index') }}" class="small">Voir le stock</a></div><div class="card-body">
+    <div class="card"><div class="card-header"><h3>Alertes opérationnelles</h3><a href="{{ route('alerts.index') }}" class="small">Voir toutes les alertes</a></div><div class="card-body">
         @forelse($alerts as $alert)<div class="alert {{ $alert->type->value === 'low_stock' ? 'alert-warning' : 'alert-danger' }}" style="margin-bottom:10px"><strong>{{ $alert->title }}</strong><div class="small" style="margin-top:3px">{{ $alert->message }}</div></div>@empty<div class="empty">Aucune alerte active.</div>@endforelse
     </div></div>
     <div class="card"><div class="card-header"><h3>Dernières factures</h3><a href="{{ route('invoices.index') }}" class="small">Toutes les factures</a></div><div class="table-wrap"><table><thead><tr><th>N°</th><th>Filiale</th><th>Client</th><th class="text-right">Total</th></tr></thead><tbody>

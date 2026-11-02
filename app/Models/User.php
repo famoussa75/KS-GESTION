@@ -39,6 +39,11 @@ class User extends Authenticatable
         return $this->role === UserRole::ADMIN;
     }
 
+    public function isCashier(): bool
+    {
+        return $this->role === UserRole::CASHIER;
+    }
+
     public function canAccessSubsidiary(int $subsidiaryId): bool
     {
         return $this->isAdmin() || $this->subsidiaries()->whereKey($subsidiaryId)->exists();

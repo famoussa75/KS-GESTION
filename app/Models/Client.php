@@ -15,9 +15,9 @@ class Client extends Model
         return $this->belongsTo(Subsidiary::class);
     }
 
-    public function proformas(): HasMany
+    public function sales(): HasMany
     {
-        return $this->hasMany(Proforma::class);
+        return $this->hasMany(Sale::class);
     }
 
     public function invoices(): HasMany

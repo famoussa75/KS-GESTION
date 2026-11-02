@@ -2,6 +2,7 @@
 @section('title','Paramètres')
 @section('page-title','Identité légale du groupe')
 @section('content')
+<div class="toolbar"><span class="small muted">Ces informations s’appliquent au groupe entier. Pour le logo ou le suivi de stock propre à une filiale, voir <a href="{{ route('subsidiaries.index') }}">Filiales</a>.</span></div>
 <div class="grid grid-2">
 <div class="card"><div class="card-header"><h3>Informations officielles</h3></div><div class="card-body"><form method="POST" action="{{ route('settings.update') }}">@csrf @method('PUT')
 <div class="form-grid">

@@ -19,7 +19,9 @@ class StockController extends Controller
         $ids = $subsidiaries->pluck('id');
         $query = Product::with(['subsidiary', 'stockItem', 'batches'])
             ->whereIn('subsidiary_id', $ids)
-            ->where('active', true);
+            ->where('active', true)
+            ->leftJoin('stock_items', 'stock_items.product_id', '=', 'products.id')
+            ->select('products.*');
 
         if ($request->filled('subsidiary_id')) {
             $access->assert($request->user(), (int) $request->subsidiary_id);
@@ -27,7 +29,10 @@ class StockController extends Controller
         }
 
         return view('stock.index', [
-            'products' => $query->orderBy('name')->paginate(30)->withQueryString(),
+            'products' => $query
+                ->orderByRaw('(COALESCE(stock_items.quantity_on_hand,0) - COALESCE(stock_items.reserved_quantity,0) - products.low_stock_threshold) asc')
+                ->orderBy('products.name')
+                ->paginate(30)->withQueryString(),
             'subsidiaries' => $subsidiaries,
             'isConsolidated' => $request->user()->isAdmin() && ! $request->filled('subsidiary_id'),
         ]);

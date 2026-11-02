@@ -76,29 +76,25 @@ class DatabaseSeeder extends Seeder
         }
 
         // Comptes de démonstration : mots de passe connus en local/test uniquement.
-        // Ailleurs, un mot de passe aléatoire est généré et affiché une seule fois.
+        // Ailleurs, un mot de passe aléatoire est généré (ou KS_ADMIN_PASSWORD pour l'admin).
         $demo = app()->environment(['local', 'testing']);
-        $password = function (string $known) use ($demo, &$generated, &$currentEmail) {
-            if ($currentEmail === 'admin@ks.local' && env('KS_ADMIN_PASSWORD')) {
-                return env('KS_ADMIN_PASSWORD');
-            }
-            if ($demo) {
-                return $known;
-            }
-            $plain = Str::password(20);
-            $generated[$currentEmail] = $plain;
-            return $plain;
-        };
         $generated = [];
 
-        $make = function (string $email, string $name, UserRole $role, string $known) use ($password, &$currentEmail) {
-            $currentEmail = $email;
+        $make = function (string $email, string $name, UserRole $role, string $known) use ($demo, &$generated) {
             $user = User::where('email', $email)->first();
             if ($user) {
                 $user->update(['name' => $name, 'role' => $role->value, 'active' => true]);
                 return $user;
             }
-            return User::create(['email' => $email, 'name' => $name, 'password' => $password($known), 'role' => $role->value, 'active' => true]);
+            if ($email === 'admin@ks.local' && env('KS_ADMIN_PASSWORD')) {
+                $plain = env('KS_ADMIN_PASSWORD');
+            } elseif ($demo) {
+                $plain = $known;
+            } else {
+                $plain = Str::password(20);
+                $generated[$email] = $plain;
+            }
+            return User::create(['email' => $email, 'name' => $name, 'password' => $plain, 'role' => $role->value, 'active' => true]);
         };
 
         $admin = $make('admin@ks.local', 'ALMAMY OUSMANE KOBÉLÉ KEITA', UserRole::ADMIN, 'KSAdmin@2026!');

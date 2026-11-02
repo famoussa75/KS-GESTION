@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Enums\DocumentType;
-use App\Enums\ProformaStatus;
+use App\Enums\SaleStatus;
 use App\Models\Invoice;
-use App\Models\Proforma;
+use App\Models\InvoicePayment;
+use App\Models\Sale;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class InvoiceService
 {
@@ -16,13 +18,40 @@ class InvoiceService
         private AuditService $audit,
     ) {}
 
-    public function convertFromProforma(Proforma $proforma, int $userId): Invoice
+    public function recordPayment(Invoice $invoice, float $amount, int $userId): InvoicePayment
     {
-        return DB::transaction(function () use ($proforma, $userId) {
-            $locked = Proforma::query()->whereKey($proforma->id)->lockForUpdate()->firstOrFail();
+        return DB::transaction(function () use ($invoice, $amount, $userId) {
+            $locked = Invoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
 
-            if ($locked->status === ProformaStatus::CONVERTED) {
-                return $locked->invoice()->firstOrFail();
+            if ($amount <= 0) {
+                throw ValidationException::withMessages(['amount' => 'Le montant doit être positif.']);
+            }
+            if ($amount - $locked->outstanding() > 0.01) {
+                throw ValidationException::withMessages(['amount' => 'Le montant dépasse le solde restant de la facture.']);
+            }
+
+            $payment = InvoicePayment::create([
+                'invoice_id' => $locked->id,
+                'cash_movement_id' => null,
+                'amount' => $amount,
+                'paid_at' => now(),
+            ]);
+
+            $this->accounting->postInvoicePayment($payment);
+            $this->audit->log('invoice.paid', $payment, $locked->subsidiary, ['invoice' => $locked->number, 'amount' => $amount, 'by' => $userId]);
+
+            return $payment;
+        });
+    }
+
+    public function createInvoiceFromSale(Sale $sale, int $userId): Invoice
+    {
+        return DB::transaction(function () use ($sale, $userId) {
+            $locked = Sale::query()->whereKey($sale->id)->lockForUpdate()->firstOrFail();
+
+            $existing = $locked->invoice()->first();
+            if ($existing) {
+                return $existing;
             }
 
             $locked->load('subsidiary.groupProfile', 'client', 'lines.product.revenueAccount');
@@ -34,10 +63,10 @@ class InvoiceService
             $invoice = Invoice::create([
                 'subsidiary_id' => $locked->subsidiary_id,
                 'client_id' => $locked->client_id,
-                'source_proforma_id' => $locked->id,
+                'source_sale_id' => $locked->id,
                 'number' => $number,
                 'issue_date' => $issueDate->toDateString(),
-                'due_date' => $issueDate->copy()->addDays(30)->toDateString(),
+                'due_date' => $locked->intent->value === 'direct' ? null : $issueDate->copy()->addDays(30)->toDateString(),
                 'currency' => $locked->currency,
                 'subtotal' => $locked->subtotal,
                 'tax_total' => $locked->tax_total,
@@ -51,11 +80,11 @@ class InvoiceService
                 'group_nif' => $group->nif,
                 'group_rib' => $group->rib,
                 'group_address' => $group->address,
-                'client_name' => $client->name,
-                'client_company' => $client->company,
-                'client_email' => $client->email,
-                'client_phone' => $client->phone,
-                'client_address' => $client->address,
+                'client_name' => $client->name ?? ($locked->walk_in_client_name ?: 'Client comptoir'),
+                'client_company' => $client->company ?? null,
+                'client_email' => $client->email ?? null,
+                'client_phone' => $client->phone ?? null,
+                'client_address' => $client->address ?? null,
                 'created_by' => $userId,
             ]);
 
@@ -75,12 +104,12 @@ class InvoiceService
             }
 
             $locked->update([
-                'status' => ProformaStatus::CONVERTED->value,
-                'converted_at' => now(),
+                'status' => SaleStatus::INVOICED->value,
+                'invoiced_at' => now(),
             ]);
 
             $this->accounting->postInvoice($invoice);
-            $this->audit->log('proforma.converted_to_invoice', $invoice, $locked->subsidiary, ['proforma' => $locked->number]);
+            $this->audit->log('sale.invoiced', $invoice, $locked->subsidiary, ['sale' => $locked->number]);
 
             return $invoice->fresh('lines');
         });

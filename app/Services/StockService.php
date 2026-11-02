@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Enums\ReservationStatus;
 use App\Enums\StockMovementType;
-use App\Models\Order;
-use App\Models\OrderLine;
 use App\Models\Product;
+use App\Models\Sale;
+use App\Models\SaleLine;
 use App\Models\StockBatch;
 use App\Models\StockItem;
 use App\Models\StockMovement;
@@ -88,35 +88,35 @@ class StockService
         });
     }
 
-    public function reserveOrder(Order $order, User $user): void
+    public function reserveSale(Sale $sale, User $user): void
     {
-        DB::transaction(function () use ($order, $user) {
-            $order->load('lines.product.subsidiary');
+        DB::transaction(function () use ($sale, $user) {
+            $sale->load('lines.product.subsidiary');
 
-            foreach ($order->lines as $line) {
+            foreach ($sale->lines as $line) {
                 $this->reserveLine($line, $user);
             }
 
-            foreach ($order->lines as $line) {
+            foreach ($sale->lines as $line) {
                 $this->alerts->refreshProduct($line->product->fresh(['stockItem', 'subsidiary']));
             }
         });
     }
 
-    public function deliverOrder(Order $order, User $user): void
+    public function deliverSale(Sale $sale, User $user): void
     {
-        DB::transaction(function () use ($order, $user) {
-            $order->load('lines.product');
+        DB::transaction(function () use ($sale, $user) {
+            $sale->load('lines.product');
 
-            foreach ($order->lines as $line) {
+            foreach ($sale->lines as $line) {
                 $reservations = StockReservation::query()
-                    ->where('order_line_id', $line->id)
+                    ->where('sale_line_id', $line->id)
                     ->where('status', ReservationStatus::ACTIVE->value)
                     ->lockForUpdate()
                     ->get();
 
                 if ($reservations->isEmpty()) {
-                    throw ValidationException::withMessages(['order' => 'Réservation de stock introuvable pour la commande.']);
+                    throw ValidationException::withMessages(['sale' => 'Réservation de stock introuvable pour la commande.']);
                 }
 
                 foreach ($reservations as $reservation) {
@@ -135,25 +135,25 @@ class StockService
                         $batch->save();
                     }
 
-                    $this->movement($line->product, $batch, StockMovementType::OUT, $qty, $before, (float) $stock->quantity_on_hand, 'Livraison commande '.$order->number, $user, $order);
+                    $this->movement($line->product, $batch, StockMovementType::OUT, $qty, $before, (float) $stock->quantity_on_hand, 'Livraison commande '.$sale->number, $user, $sale);
                     $reservation->update(['status' => ReservationStatus::CONSUMED->value]);
                 }
 
                 $this->alerts->refreshProduct($line->product->fresh(['stockItem', 'subsidiary']));
             }
 
-            $this->audit->log('order.stock_consumed', $order, $order->subsidiary, ['order' => $order->number]);
+            $this->audit->log('sale.stock_consumed', $sale, $sale->subsidiary, ['sale' => $sale->number]);
         });
     }
 
-    public function releaseOrder(Order $order, User $user): void
+    public function releaseSale(Sale $sale, User $user): void
     {
-        DB::transaction(function () use ($order, $user) {
-            $order->load('lines.product');
+        DB::transaction(function () use ($sale, $user) {
+            $sale->load('lines.product');
 
-            foreach ($order->lines as $line) {
+            foreach ($sale->lines as $line) {
                 $reservations = StockReservation::query()
-                    ->where('order_line_id', $line->id)
+                    ->where('sale_line_id', $line->id)
                     ->where('status', ReservationStatus::ACTIVE->value)
                     ->lockForUpdate()
                     ->get();
@@ -171,19 +171,53 @@ class StockService
                         $batch->save();
                     }
 
-                    $on = (float) $stock->quantity_on_hand;
-                    $this->movement($line->product, $batch, StockMovementType::RELEASE, $qty, $on, $on, 'Annulation commande '.$order->number, $user, $order);
+                    $onHand = (float) $stock->quantity_on_hand;
+                    $this->movement($line->product, $batch, StockMovementType::RELEASE, $qty, $onHand, $onHand, 'Annulation commande '.$sale->number, $user, $sale);
                     $reservation->update(['status' => ReservationStatus::RELEASED->value]);
                 }
 
                 $this->alerts->refreshProduct($line->product->fresh(['stockItem', 'subsidiary']));
             }
 
-            $this->audit->log('order.stock_released', $order, $order->subsidiary, ['order' => $order->number]);
+            $this->audit->log('sale.stock_released', $sale, $sale->subsidiary, ['sale' => $sale->number]);
         });
     }
 
-    private function reserveLine(OrderLine $line, User $user): void
+    public function sellSale(Sale $sale, User $user): void
+    {
+        DB::transaction(function () use ($sale, $user) {
+            $sale->load('lines.product.subsidiary');
+
+            foreach ($sale->lines as $line) {
+                if (! $line->product_id) continue;
+
+                $product = $line->product;
+                $qty = (float) $line->quantity;
+                $reason = 'Vente directe '.$sale->number;
+                $stock = StockItem::query()->where('product_id', $product->id)->lockForUpdate()->firstOrFail();
+                $available = (float) $stock->quantity_on_hand - (float) $stock->reserved_quantity;
+
+                if ($qty > $available) {
+                    throw ValidationException::withMessages(['stock' => "Stock insuffisant pour {$product->name} : disponible {$available}, demandé {$qty}."]);
+                }
+
+                if ($product->subsidiary->tracks_expiry) {
+                    $this->consumeUnreservedBatches($product, $qty, $reason, $user, $stock, StockMovementType::OUT, $sale, true);
+                } else {
+                    $before = (float) $stock->quantity_on_hand;
+                    $stock->quantity_on_hand = $before - $qty;
+                    $stock->save();
+                    $this->movement($product, null, StockMovementType::OUT, $qty, $before, (float) $stock->quantity_on_hand, $reason, $user, $sale);
+                }
+
+                $this->alerts->refreshProduct($product->fresh(['stockItem', 'subsidiary']));
+            }
+
+            $this->audit->log('sale.stock_sold_direct', $sale, $sale->subsidiary, ['sale' => $sale->number]);
+        });
+    }
+
+    private function reserveLine(SaleLine $line, User $user): void
     {
         $product = $line->product;
         $qty = (float) $line->quantity;
@@ -213,7 +247,7 @@ class StockService
                 $take = min($remaining, $batchAvailable);
                 $batch->reserved_quantity = (float) $batch->reserved_quantity + $take;
                 $batch->save();
-                StockReservation::create(['order_line_id' => $line->id, 'product_id' => $product->id, 'stock_batch_id' => $batch->id, 'quantity' => $take, 'status' => ReservationStatus::ACTIVE->value]);
+                StockReservation::create(['sale_line_id' => $line->id, 'product_id' => $product->id, 'stock_batch_id' => $batch->id, 'quantity' => $take, 'status' => ReservationStatus::ACTIVE->value]);
                 $remaining -= $take;
                 if ($remaining <= 0.0001) break;
             }
@@ -222,18 +256,19 @@ class StockService
                 throw ValidationException::withMessages(['stock' => "Lots disponibles insuffisants pour {$product->name}."]);
             }
         } else {
-            StockReservation::create(['order_line_id' => $line->id, 'product_id' => $product->id, 'stock_batch_id' => null, 'quantity' => $qty, 'status' => ReservationStatus::ACTIVE->value]);
+            StockReservation::create(['sale_line_id' => $line->id, 'product_id' => $product->id, 'stock_batch_id' => null, 'quantity' => $qty, 'status' => ReservationStatus::ACTIVE->value]);
         }
 
-        $this->movement($product, null, StockMovementType::RESERVE, $qty, (float) $stock->quantity_on_hand, (float) $stock->quantity_on_hand, 'Réservation commande '.$line->order->number, $user, $line->order);
+        $this->movement($product, null, StockMovementType::RESERVE, $qty, (float) $stock->quantity_on_hand, (float) $stock->quantity_on_hand, 'Réservation commande '.$line->sale->number, $user, $line->sale);
     }
 
-    private function consumeUnreservedBatches(Product $product, float $quantity, string $reason, User $user, StockItem $stock): void
+    protected function consumeUnreservedBatches(Product $product, float $quantity, string $reason, User $user, StockItem $stock, StockMovementType $type = StockMovementType::ADJUSTMENT_OUT, ?object $source = null, bool $excludeExpired = false): void
     {
         $remaining = $quantity;
         $batches = StockBatch::query()
             ->where('product_id', $product->id)
             ->where('quantity_on_hand', '>', 0)
+            ->when($excludeExpired, fn ($q) => $q->where(fn ($w) => $w->whereNull('expiry_date')->orWhere('expiry_date', '>=', Carbon::today()->toDateString())))
             ->orderByRaw('expiry_date IS NULL, expiry_date ASC')
             ->lockForUpdate()->get();
 
@@ -246,7 +281,7 @@ class StockService
             $batch->save();
             $stock->quantity_on_hand = $before - $take;
             $stock->save();
-            $this->movement($product, $batch, StockMovementType::ADJUSTMENT_OUT, $take, $before, (float) $stock->quantity_on_hand, $reason, $user);
+            $this->movement($product, $batch, $type, $take, $before, (float) $stock->quantity_on_hand, $reason, $user, $source);
             $remaining -= $take;
             if ($remaining <= 0.0001) break;
         }

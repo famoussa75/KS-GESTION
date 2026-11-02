@@ -30,16 +30,14 @@ class Invoice extends Model
 
     public function subsidiary(): BelongsTo { return $this->belongsTo(Subsidiary::class); }
     public function client(): BelongsTo { return $this->belongsTo(Client::class); }
-    public function sourceProforma(): BelongsTo { return $this->belongsTo(Proforma::class, 'source_proforma_id'); }
+    public function sourceSale(): BelongsTo { return $this->belongsTo(Sale::class, 'source_sale_id'); }
     public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
     public function lines(): HasMany { return $this->hasMany(InvoiceLine::class); }
     public function payments(): HasMany { return $this->hasMany(InvoicePayment::class); }
 
     public function paidTotal(): float
     {
-        return $this->relationLoaded('payments')
-            ? (float) $this->payments->sum('amount')
-            : (float) $this->payments()->sum('amount');
+        return (float) $this->payments()->sum('amount');
     }
 
     public function outstanding(): float

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\CashDirection;
 use App\Models\AccountingAccount;
+use App\Models\Alert;
 use App\Models\CashRegister;
 use App\Models\CashSession;
 use App\Models\Invoice;
@@ -25,7 +26,11 @@ class CashController extends Controller
         $recentSessions = CashSession::with('register.subsidiary', 'opener', 'closer')
             ->whereHas('register', fn ($q) => $q->whereIn('subsidiary_id', $ids))
             ->latest('opened_at')->paginate(20);
-        return view('cash.index', compact('subsidiaries', 'registers', 'recentSessions'));
+        $recentSales = Invoice::whereIn('subsidiary_id', $ids)
+            ->whereHas('sourceSale', fn ($q) => $q->where('intent', 'direct'))
+            ->latest('issue_date')->latest('id')->limit(5)->get();
+        $alerts = Alert::whereIn('subsidiary_id', $ids)->where('active', true)->latest()->limit(5)->get();
+        return view('cash.index', compact('subsidiaries', 'registers', 'recentSessions', 'recentSales', 'alerts'));
     }
 
     public function open(Request $request, SubsidiaryAccess $access, CashService $cash): RedirectResponse
@@ -42,14 +47,10 @@ class CashController extends Controller
 
     public function show(Request $request, CashSession $session, SubsidiaryAccess $access): View
     {
-        $session->load('register.subsidiary.groupProfile', 'movements.invoice', 'movements.expenseAccount', 'movements.creator', 'opener', 'closer');
+        $session->load('register.subsidiary.groupProfile', 'movements.expenseAccount', 'movements.creator', 'opener', 'closer');
         $access->assert($request->user(), $session->register->subsidiary_id);
-        $invoices = Invoice::with('payments')
-            ->where('subsidiary_id', $session->register->subsidiary_id)
-            ->whereRaw('total - COALESCE((SELECT SUM(amount) FROM invoice_payments WHERE invoice_payments.invoice_id = invoices.id), 0) > 0.01')
-            ->latest('issue_date')->limit(200)->get();
         $expenseAccounts = AccountingAccount::where('type', 'expense')->where('active', true)->orderBy('code')->get();
-        return view('cash.show', compact('session', 'invoices', 'expenseAccounts'));
+        return view('cash.show', compact('session', 'expenseAccounts'));
     }
 
     public function movement(Request $request, CashSession $session, SubsidiaryAccess $access, CashService $cash): RedirectResponse
@@ -59,20 +60,17 @@ class CashController extends Controller
         $data = $request->validate([
             'direction' => ['required', Rule::in([CashDirection::IN->value, CashDirection::OUT->value])],
             'amount' => ['required', 'numeric', 'gt:0'],
-            'invoice_id' => ['nullable', 'exists:invoices,id'],
             'expense_account_id' => ['nullable', 'exists:accounting_accounts,id'],
-            'justification' => ['nullable', 'string', 'max:255'],
+            'justification' => ['required', 'string', 'max:255'],
             'reference' => ['nullable', 'string', 'max:100'],
         ]);
-        $invoice = ! empty($data['invoice_id']) ? Invoice::findOrFail($data['invoice_id']) : null;
         $expense = ! empty($data['expense_account_id']) ? AccountingAccount::where('type', 'expense')->findOrFail($data['expense_account_id']) : null;
         $cash->addMovement(
             $session,
             CashDirection::from($data['direction']),
             (float) $data['amount'],
-            $invoice,
             $expense,
-            $data['justification'] ?? null,
+            $data['justification'],
             $data['reference'] ?? null,
             $request->user()
         );

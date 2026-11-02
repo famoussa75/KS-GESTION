@@ -1,9 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -16,10 +14,6 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::table('orders', function (Blueprint $table) {
-            $table->timestamp('cancelled_at')->nullable()->after('delivered_at');
-        });
-
         if (DB::getDriverName() !== 'mysql') {
             return;
         }
@@ -32,15 +26,13 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (DB::getDriverName() === 'mysql') {
-            foreach (array_keys($this->appendOnly) as $table) {
-                DB::unprepared("DROP TRIGGER IF EXISTS ks_{$table}_no_delete");
-                DB::unprepared("DROP TRIGGER IF EXISTS ks_{$table}_no_update");
-            }
+        if (DB::getDriverName() !== 'mysql') {
+            return;
         }
 
-        Schema::table('orders', function (Blueprint $table) {
-            $table->dropColumn('cancelled_at');
-        });
+        foreach (array_keys($this->appendOnly) as $table) {
+            DB::unprepared("DROP TRIGGER IF EXISTS ks_{$table}_no_delete");
+            DB::unprepared("DROP TRIGGER IF EXISTS ks_{$table}_no_update");
+        }
     }
 };

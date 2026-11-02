@@ -3,10 +3,18 @@
 @section('page-title','Gestion de caisse')
 @section('content')
 <div class="hero"><h2>Sessions de caisse contrôlées</h2><p>Chaque ouverture commence par un fond saisi manuellement. À la clôture, le système calcule le solde théorique et l’écart avec le comptage réel.</p></div>
+<div class="grid grid-2" style="margin-bottom:18px">
+<div class="card"><div class="card-header"><h3>Dernières ventes</h3><a href="{{ route('invoices.index') }}" class="small">Voir toutes les factures</a></div><div class="card-body">
+@forelse($recentSales as $sale)<div class="stat-line"><span>{{ $sale->number }} — {{ $sale->client_name }}</span><strong>{{ number_format($sale->total,0,',',' ') }} GNF</strong></div>@empty<div class="empty">Aucune vente récente.</div>@endforelse
+</div></div>
+<div class="card"><div class="card-header"><h3>Alertes à connaître</h3><a href="{{ route('alerts.index') }}" class="small">Voir toutes les alertes</a></div><div class="card-body">
+@forelse($alerts as $alert)<div class="alert {{ $alert->type->value === 'low_stock' ? 'alert-warning' : 'alert-danger' }}" style="margin-bottom:8px"><strong>{{ $alert->title }}</strong></div>@empty<div class="empty">Aucune alerte active.</div>@endforelse
+</div></div>
+</div>
 <div class="grid grid-3" style="margin-bottom:18px">
 @foreach($registers as $register) @php($open=$register->sessions->firstWhere('closed_at',null))
 <div class="card"><div class="card-header"><h3>{{ $register->name }}</h3><span class="badge badge-blue">{{ $register->subsidiary->code }}</span></div><div class="card-body">
-@if($open)<div class="alert alert-success"><strong>Caisse ouverte</strong><div class="small">Depuis {{ $open->opened_at->format('d/m/Y H:i') }}</div></div><a class="btn btn-primary" href="{{ route('cash.show',$open) }}">Ouvrir la session</a>
+@if($open)<div class="alert alert-success"><strong>Caisse ouverte</strong><div class="small">Depuis {{ $open->opened_at->format('d/m/Y H:i') }}</div></div><a class="btn btn-primary" href="{{ route('cash.show',$open) }}">Accéder à la session</a>
 @else<form method="POST" action="{{ route('cash.open') }}">@csrf<input type="hidden" name="cash_register_id" value="{{ $register->id }}"><div class="form-group"><label>Fond de départ</label><input type="number" step="0.01" min="0" name="opening_float" value="0" required></div><button class="btn btn-primary" style="margin-top:12px">Ouvrir la caisse</button></form>@endif
 </div></div>@endforeach
 </div>

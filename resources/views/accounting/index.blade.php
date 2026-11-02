@@ -3,6 +3,11 @@
 @section('page-title','Pré-comptabilité SYSCOHADA')
 @section('content')
 <div class="hero"><h2>Journalisation automatique</h2><p>Les factures définitives et mouvements de caisse génèrent des écritures équilibrées. Le plan fourni est une base de paramétrage SYSCOHADA à faire valider par l’expert-comptable avant production.</p></div>
+<div class="grid grid-3" style="margin-bottom:18px">
+<div class="card metric"><div class="metric-accent"></div><div class="metric-label">Chiffre d’affaires du mois</div><div class="metric-value">{{ number_format($monthTotal,0,',',' ') }} GNF</div></div>
+<div class="card metric"><div class="metric-accent"></div><div class="metric-label">Encaissé ce mois</div><div class="metric-value">{{ number_format($monthPaid,0,',',' ') }} GNF</div></div>
+<div class="card metric"><div class="metric-accent"></div><div class="metric-label">Reste à recouvrer</div><div class="metric-value">{{ number_format($monthOutstanding,0,',',' ') }} GNF</div></div>
+</div>
 <div class="toolbar"><form style="display:flex;gap:8px;flex-wrap:wrap"><select name="subsidiary_id"><option value="">Toutes filiales</option>@foreach($subsidiaries as $s)<option value="{{ $s->id }}" {{ request('subsidiary_id')==$s->id?'selected':'' }}>{{ $s->name }}</option>@endforeach</select><select name="journal_id"><option value="">Tous journaux</option>@foreach($journals as $j)<option value="{{ $j->id }}" {{ request('journal_id')==$j->id?'selected':'' }}>{{ $j->code }} — {{ $j->label }}</option>@endforeach</select><input type="date" name="from" value="{{ request('from') }}"><input type="date" name="to" value="{{ request('to') }}"><button class="btn btn-secondary">Filtrer</button></form></div>
 <div class="grid grid-3" style="grid-template-columns:2fr 1fr">
 <div class="card"><div class="card-header"><h3>Écritures comptables</h3></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Journal</th><th>Référence</th><th>Libellé</th><th class="text-right">Débit</th><th class="text-right">Crédit</th></tr></thead><tbody>

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GroupProfile;
 use App\Models\Subsidiary;
 use App\Services\AuditService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class SubsidiaryController extends Controller
@@ -14,6 +16,36 @@ class SubsidiaryController extends Controller
     public function index(): View
     {
         return view('subsidiaries.index', ['subsidiaries' => Subsidiary::with('groupProfile')->orderBy('name')->get()]);
+    }
+
+    public function create(): View
+    {
+        return view('subsidiaries.create');
+    }
+
+    public function store(Request $request, AuditService $audit): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'code' => ['required', 'string', 'max:12', 'alpha_num', 'unique:subsidiaries,code'],
+            'activity' => ['required', 'string', 'max:180'],
+            'tracks_expiry' => ['nullable', 'boolean'],
+            'default_shelf_life_months' => ['nullable', 'integer', 'min:1', 'max:60'],
+        ]);
+
+        $subsidiary = Subsidiary::create([
+            'group_profile_id' => GroupProfile::firstOrFail()->id,
+            'name' => $data['name'],
+            'code' => strtoupper($data['code']),
+            'slug' => Str::slug($data['name']),
+            'activity' => $data['activity'],
+            'tracks_expiry' => $request->boolean('tracks_expiry'),
+            'default_shelf_life_months' => $data['default_shelf_life_months'] ?? null,
+            'active' => true,
+        ]);
+
+        $audit->log('subsidiary.created', $subsidiary, $subsidiary);
+        return redirect()->route('subsidiaries.edit', $subsidiary)->with('success', 'Filiale créée. Vous pouvez maintenant y ajouter un logo.');
     }
 
     public function edit(Subsidiary $subsidiary): View

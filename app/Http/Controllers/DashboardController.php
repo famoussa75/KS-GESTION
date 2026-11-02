@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Alert;
 use App\Models\CashSession;
 use App\Models\Invoice;
-use App\Models\Order;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\StockItem;
 use App\Services\SubsidiaryAccess;
 use Illuminate\Http\Request;
@@ -28,7 +28,7 @@ class DashboardController extends Controller
             'outstandingTotal' => max(0, $invoiceTotal - $paid),
             'openCash' => $openCash,
             'stockUnits' => $stockUnits,
-            'pendingOrders' => Order::whereIn('subsidiary_id', $ids)->whereNotIn('status', ['delivered', 'cancelled'])->count(),
+            'pendingOrders' => Sale::whereIn('subsidiary_id', $ids)->where('intent', 'order')->whereNotIn('status', ['delivered', 'invoiced', 'cancelled'])->count(),
             'productCount' => Product::whereIn('subsidiary_id', $ids)->count(),
             'alerts' => Alert::whereIn('subsidiary_id', $ids)->where('active', true)->latest()->limit(8)->get(),
             'recentInvoices' => Invoice::whereIn('subsidiary_id', $ids)->latest('issue_date')->limit(6)->get(),

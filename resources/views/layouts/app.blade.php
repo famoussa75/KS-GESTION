@@ -16,22 +16,20 @@
             <div><strong>KS Gestion</strong><small>Groupe multi-filiales</small></div>
         </div>
 
-        @if(auth()->user()->role === \App\Enums\UserRole::ADMIN)
-            <div class="nav-section">Pilotage</div>
-            <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}"><span class="nav-icon">DB</span> Tableau de bord</a>
-            <a class="nav-link {{ request()->routeIs('proformas.*') ? 'active' : '' }}" href="{{ route('proformas.index') }}"><span class="nav-icon">PF</span> Proformas</a>
-            <a class="nav-link {{ request()->routeIs('invoices.*') ? 'active' : '' }}" href="{{ route('invoices.index') }}"><span class="nav-icon">FA</span> Factures</a>
-            <a class="nav-link {{ request()->routeIs('orders.*') ? 'active' : '' }}" href="{{ route('orders.index') }}"><span class="nav-icon">CM</span> Commandes</a>
-            <a class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}" href="{{ route('clients.index') }}"><span class="nav-icon">CL</span> Clients</a>
-        @endif
+        <div class="nav-section">Alertes</div>
+        <a class="nav-link {{ request()->routeIs('alerts.*') ? 'active' : '' }}" href="{{ route('alerts.index') }}"><span class="nav-icon">AL</span> Alertes actives</a>
 
         @if(in_array(auth()->user()->role, [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::CASHIER], true))
-            <div class="nav-section">Trésorerie</div>
+            <div class="nav-section">Vendre</div>
+            <a class="nav-link {{ request()->routeIs('sales.*') ? 'active' : '' }}" href="{{ route('sales.index') }}"><span class="nav-icon">VE</span> Ventes</a>
+            <a class="nav-link {{ request()->routeIs('invoices.*') ? 'active' : '' }}" href="{{ route('invoices.index') }}"><span class="nav-icon">FA</span> Factures</a>
+
+            <div class="nav-section">Encaisser</div>
             <a class="nav-link {{ request()->routeIs('cash.*') ? 'active' : '' }}" href="{{ route('cash.index') }}"><span class="nav-icon">CA</span> Caisse</a>
         @endif
 
         @if(in_array(auth()->user()->role, [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::STOCKKEEPER], true))
-            <div class="nav-section">Opérations</div>
+            <div class="nav-section">Stock</div>
             <a class="nav-link {{ request()->routeIs('stock.*') ? 'active' : '' }}" href="{{ route('stock.index') }}"><span class="nav-icon">ST</span> Stock</a>
             @if(auth()->user()->role === \App\Enums\UserRole::ADMIN)
                 <a class="nav-link {{ request()->routeIs('products.*') ? 'active' : '' }}" href="{{ route('products.index') }}"><span class="nav-icon">PR</span> Produits</a>
@@ -39,7 +37,11 @@
         @endif
 
         @if(auth()->user()->role === \App\Enums\UserRole::ADMIN)
-            <div class="nav-section">Structure & conformité</div>
+            <div class="nav-section">Clients</div>
+            <a class="nav-link {{ request()->routeIs('clients.*') ? 'active' : '' }}" href="{{ route('clients.index') }}"><span class="nav-icon">CL</span> Clients</a>
+
+            <div class="nav-section">Pilotage</div>
+            <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}"><span class="nav-icon">DB</span> Tableau de bord</a>
             <a class="nav-link {{ request()->routeIs('accounting.*') ? 'active' : '' }}" href="{{ route('accounting.index') }}"><span class="nav-icon">OH</span> SYSCOHADA</a>
             <a class="nav-link {{ request()->routeIs('subsidiaries.*') ? 'active' : '' }}" href="{{ route('subsidiaries.index') }}"><span class="nav-icon">FI</span> Filiales</a>
             <a class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}" href="{{ route('users.index') }}"><span class="nav-icon">US</span> Utilisateurs</a>

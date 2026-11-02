@@ -23,8 +23,8 @@ class CashVarianceTest extends TestCase
         $service = app(CashService::class);
 
         $session = $service->open($register, 10000, $admin);
-        $service->addMovement($session, CashDirection::IN, 5000, null, null, 'Apport de caisse justifié', 'IN-TEST', $admin);
-        $service->addMovement($session, CashDirection::OUT, 2000, null, $expense, 'Achat matières premières', 'OUT-TEST', $admin);
+        $service->addMovement($session, CashDirection::IN, 5000, null, 'Apport de caisse justifié', 'IN-TEST', $admin);
+        $service->addMovement($session, CashDirection::OUT, 2000, $expense, 'Achat matières premières', 'OUT-TEST', $admin);
         $closed = $service->close($session, 12900, 'Comptage test', $admin);
 
         $this->assertSame(13000.0, (float) $closed->theoretical_closing);
