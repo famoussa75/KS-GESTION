@@ -10,7 +10,9 @@
 </head>
 <body>
 <div class="app-shell">
-    <aside class="sidebar">
+    <div class="sidebar-overlay" data-sidebar-toggle></div>
+    <aside class="sidebar" id="sidebar">
+        <button class="sidebar-close" type="button" data-sidebar-toggle aria-label="Fermer le menu">✕</button>
         <div class="brand">
             <img src="{{ asset('images/ks-logo.png') }}" alt="KS">
             <div><strong>KS Gestion</strong><small>Groupe multi-filiales</small></div>
@@ -51,8 +53,8 @@
 
     <main class="main">
         <header class="topbar no-print">
-            <div style="display:flex;align-items:center;gap:12px">
-                <button class="mobile-toggle" data-sidebar-toggle>☰</button>
+            <div class="topbar-left">
+                <button class="mobile-toggle" type="button" data-sidebar-toggle aria-label="Ouvrir le menu" aria-controls="sidebar">☰</button>
                 <h1 class="page-title">@yield('page-title', 'KS Gestion')</h1>
             </div>
             <div class="topbar-user">

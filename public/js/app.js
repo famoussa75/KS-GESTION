@@ -1,5 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-sidebar-toggle]').forEach(btn => btn.addEventListener('click', () => document.body.classList.toggle('sidebar-open')));
+    document.querySelectorAll('.sidebar .nav-link').forEach(l => l.addEventListener('click', () => document.body.classList.remove('sidebar-open')));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') document.body.classList.remove('sidebar-open'); });
+    window.matchMedia('(min-width: 821px)').addEventListener('change', () => document.body.classList.remove('sidebar-open'));
     document.querySelectorAll('[data-print]').forEach(btn => btn.addEventListener('click', () => window.print()));
 
     document.addEventListener('change', (e) => {
