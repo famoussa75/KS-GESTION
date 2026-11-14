@@ -49,6 +49,11 @@
             <a class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}" href="{{ route('users.index') }}"><span class="nav-icon">US</span> Utilisateurs</a>
             <a class="nav-link {{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.edit') }}"><span class="nav-icon">PA</span> Paramètres</a>
         @endif
+
+        <div class="sidebar-user">
+            <div><strong>{{ auth()->user()->name }}</strong><small>{{ auth()->user()->role->label() }}</small></div>
+            <form method="POST" action="{{ route('logout') }}">@csrf<button class="btn btn-secondary" type="submit">Déconnexion</button></form>
+        </div>
     </aside>
 
     <main class="main">
@@ -60,7 +65,7 @@
             <div class="topbar-user">
                 <div class="avatar">{{ mb_strtoupper(mb_substr(auth()->user()->name,0,1)) }}</div>
                 <div class="user-meta"><strong>{{ auth()->user()->name }}</strong><small>{{ auth()->user()->role->label() }}</small></div>
-                <form method="POST" action="{{ route('logout') }}">@csrf<button class="btn btn-secondary btn-sm" type="submit">Déconnexion</button></form>
+                <form method="POST" action="{{ route('logout') }}" class="logout-desktop">@csrf<button class="btn btn-secondary btn-sm" type="submit">Déconnexion</button></form>
             </div>
         </header>
         <section class="content">
