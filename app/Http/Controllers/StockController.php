@@ -51,7 +51,7 @@ class StockController extends Controller
         $access->assert($request->user(), $product->subsidiary_id);
         $data = $request->validate([
             'type' => ['required', Rule::in([StockMovementType::ADJUSTMENT_IN->value, StockMovementType::ADJUSTMENT_OUT->value])],
-            'quantity' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['required', 'integer', 'min:1'],
             'reason' => ['required', 'string', 'max:255'],
         ]);
         $stock->adjust($product, StockMovementType::from($data['type']), (float) $data['quantity'], $data['reason'], $request->user());
@@ -64,7 +64,7 @@ class StockController extends Controller
         $data = $request->validate([
             'batch_number' => ['required', 'string', 'max:80'],
             'production_date' => ['required', 'date', 'before_or_equal:today'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['required', 'integer', 'min:1'],
         ]);
         if ($product->batches()->where('batch_number', $data['batch_number'])->exists()) {
             return back()->withErrors(['batch_number' => 'Ce numéro de lot existe déjà pour ce produit.']);

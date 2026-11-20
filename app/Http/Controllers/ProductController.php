@@ -48,7 +48,7 @@ class ProductController extends Controller
             'sale_price' => ['required', 'numeric', 'min:0'],
             'cost_price' => ['required', 'numeric', 'min:0'],
             'tax_rate' => ['required', 'numeric', 'min:0', 'max:100'],
-            'low_stock_threshold' => ['required', 'numeric', 'min:0'],
+            'low_stock_threshold' => ['required', 'integer', 'min:0'],
             'revenue_account_id' => ['nullable', 'exists:accounting_accounts,id'],
         ]);
         $access->assert($request->user(), (int) $data['subsidiary_id']);
@@ -78,7 +78,7 @@ class ProductController extends Controller
             'sale_price' => ['required', 'numeric', 'min:0'],
             'cost_price' => ['required', 'numeric', 'min:0'],
             'tax_rate' => ['required', 'numeric', 'min:0', 'max:100'],
-            'low_stock_threshold' => ['required', 'numeric', 'min:0'],
+            'low_stock_threshold' => ['required', 'integer', 'min:0'],
             'revenue_account_id' => ['nullable', 'exists:accounting_accounts,id'],
             'active' => ['nullable', 'boolean'],
         ]);

@@ -15,4 +15,5 @@ return [
     'cash_session_number_format' => 'CAI-{CODE}-{YEAR}-{SEQ}',
     'sossoguinai_shelf_life_months' => 6,
     'signed_document_link_days' => 7,
+    'whatsapp_country_code' => env('WHATSAPP_COUNTRY_CODE', '224'),
 ];

@@ -6,7 +6,7 @@
 <div class="grid grid-4" style="margin-bottom:20px">
     <div class="card metric"><div class="metric-accent"></div><div class="metric-label">Facturation</div><div class="metric-value">{{ number_format($invoiceTotal,0,',',' ') }} GNF</div><div class="metric-note">Montant cumulé des factures définitives</div></div>
     <div class="card metric"><div class="metric-accent"></div><div class="metric-label">À recouvrer</div><div class="metric-value">{{ number_format($outstandingTotal,0,',',' ') }} GNF</div><div class="metric-note">Solde non encaissé</div></div>
-    <div class="card metric"><div class="metric-accent"></div><div class="metric-label">Stock physique</div><div class="metric-value">{{ number_format($stockUnits,3,',',' ') }}</div><div class="metric-note">Unités cumulées • {{ $productCount }} produit(s)</div></div>
+    <div class="card metric"><div class="metric-accent"></div><div class="metric-label">Stock physique</div><div class="metric-value">{{ number_format($stockUnits,0,',',' ') }}</div><div class="metric-note">Unités cumulées • {{ $productCount }} produit(s)</div></div>
     <div class="card metric"><div class="metric-accent"></div><div class="metric-label">Commandes actives</div><div class="metric-value">{{ $pendingOrders }}</div><div class="metric-note">{{ $openCash }} caisse(s) actuellement ouverte(s)</div></div>
 </div>
 <div class="grid grid-2">

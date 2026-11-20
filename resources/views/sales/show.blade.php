@@ -10,9 +10,11 @@
         <a class="btn btn-secondary" href="{{ route('sales.edit',$sale) }}">Modifier</a>
     @endif
     @if($sale->intent->value === 'quote')
-        @if($sale->status->value === 'draft')
-            <form method="POST" action="{{ route('sales.send',$sale) }}">@csrf<button class="btn btn-primary">Envoyer au client</button></form>
-        @elseif($sale->status->value === 'sent')
+        @if(in_array($sale->status->value, ['draft','sent']))
+            <form method="POST" action="{{ route('sales.send',$sale) }}">@csrf<input type="hidden" name="channel" value="whatsapp"><button class="btn btn-success">WhatsApp</button></form>
+            <form method="POST" action="{{ route('sales.send',$sale) }}">@csrf<input type="hidden" name="channel" value="email"><button class="btn {{ $sale->status->value === 'draft' ? 'btn-primary' : 'btn-secondary' }}">{{ $sale->status->value === 'draft' ? 'Envoyer par e-mail' : 'Renvoyer par e-mail' }}</button></form>
+        @endif
+        @if($sale->status->value === 'sent')
             <form method="POST" action="{{ route('sales.advance',$sale) }}" onsubmit="return confirm('Confirmer ce devis ?')">@csrf<button class="btn btn-primary">Confirmer</button></form>
         @elseif($sale->status->value === 'confirmed')
             <form method="POST" action="{{ route('sales.convert',$sale) }}" onsubmit="return confirm('Créer la facture définitive ? Elle deviendra immuable et non supprimable.')">@csrf<button class="btn btn-success">Convertir en facture définitive</button></form>

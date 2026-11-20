@@ -253,27 +253,67 @@ class SaleController extends Controller
         return back()->with('success', 'Annulé. Les réservations de stock éventuelles ont été libérées.');
     }
 
-    public function sendToClient(Sale $sale, AuditService $audit): RedirectResponse
+    public function sendToClient(Request $request, Sale $sale, AuditService $audit): RedirectResponse
     {
         $this->authorizeSale(auth()->user(), $sale);
         if ($sale->intent !== SaleIntent::QUOTE) abort(404);
-        if ($sale->status !== SaleStatus::DRAFT) {
-            return back()->withErrors(['send' => 'Ce devis a déjà été envoyé ou traité.']);
+        if (! in_array($sale->status, [SaleStatus::DRAFT, SaleStatus::SENT], true)) {
+            return back()->withErrors(['send' => 'Ce devis a déjà été confirmé ou traité.']);
         }
+        $channel = $request->input('channel', 'email');
+        if (! in_array($channel, ['email', 'whatsapp'], true)) abort(422);
         $sale->load('subsidiary.groupProfile', 'client', 'lines');
-        if (! $sale->client?->email) {
-            return back()->withErrors(['email' => 'Le client ne possède pas d’adresse e-mail.']);
-        }
 
         $url = URL::temporarySignedRoute(
             'public.proformas.show',
             now()->addDays((int) config('ks.signed_document_link_days', 7)),
             ['sale' => $sale->id]
         );
-        Mail::to($sale->client->email)->send(new ProformaMail($sale, $url));
-        $sale->update(['status' => SaleStatus::SENT->value, 'sent_at' => now()]);
-        $audit->log('sale.sent', $sale, $sale->subsidiary, ['email' => $sale->client->email]);
-        return back()->with('success', 'Devis envoyé au client.');
+
+        if ($channel === 'whatsapp') {
+            $phone = $this->whatsappNumber($sale->client?->phone);
+            if (! $phone) {
+                return back()->withErrors(['send' => 'Le client n’a pas de numéro de téléphone valide pour WhatsApp. Ajoutez-le dans la fiche client.']);
+            }
+            $text = "Bonjour {$sale->client->name},\nVoici votre facture proforma {$sale->number} ("
+                .number_format($sale->total, 0, ',', ' ').' GNF) de '.$sale->subsidiary->name.".\n"
+                ."Consulter le document : {$url}";
+            $this->markSent($sale);
+            $audit->log('sale.sent', $sale, $sale->subsidiary, ['channel' => 'whatsapp', 'phone' => $phone]);
+            return redirect()->away('https://wa.me/'.$phone.'?text='.rawurlencode($text));
+        }
+
+        if (! $sale->client?->email) {
+            return back()->withErrors(['email' => 'Le client ne possède pas d’adresse e-mail.']);
+        }
+        if (in_array(config('mail.default'), ['log', 'array'], true)) {
+            return back()->withErrors(['send' => 'L’envoi d’e-mails n’est pas configuré sur ce serveur (SMTP manquant) : aucun e-mail n’a été envoyé. Utilisez WhatsApp ou configurez le courrier.']);
+        }
+        try {
+            Mail::to($sale->client->email)->send(new ProformaMail($sale, $url));
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->withErrors(['send' => 'L’e-mail n’a pas pu être envoyé : '.$e->getMessage()]);
+        }
+        $this->markSent($sale);
+        $audit->log('sale.sent', $sale, $sale->subsidiary, ['channel' => 'email', 'email' => $sale->client->email]);
+        return back()->with('success', 'Devis envoyé par e-mail à '.$sale->client->email.'.');
+    }
+
+    private function markSent(Sale $sale): void
+    {
+        if ($sale->status === SaleStatus::DRAFT) {
+            $sale->update(['status' => SaleStatus::SENT->value, 'sent_at' => now()]);
+        }
+    }
+
+    /** Numéro au format international sans « + » (indicatif Guinée 224 par défaut). */
+    private function whatsappNumber(?string $raw): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $raw);
+        if (str_starts_with($digits, '00')) $digits = substr($digits, 2);
+        elseif (strlen($digits) <= 9) $digits = config('ks.whatsapp_country_code', '224').ltrim($digits, '0');
+        return strlen($digits) >= 10 && strlen($digits) <= 15 ? $digits : null;
     }
 
     public function convert(Sale $sale, InvoiceService $invoices): RedirectResponse
@@ -348,7 +388,7 @@ class SaleController extends Controller
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['nullable', 'exists:products,id', 'required_if:intent,order'],
             'lines.*.description' => ['nullable', 'string', 'max:255'],
-            'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'lines.*.quantity' => ['required', 'integer', 'min:1'],
             'lines.*.unit_price' => ['required', 'numeric', 'min:0'],
             'lines.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);

@@ -215,4 +215,53 @@ class SaleTest extends TestCase
             'lines' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1000]],
         ])->assertForbidden();
     }
+
+    private function makeQuote(?string $phone, ?string $email = null): Sale
+    {
+        $subsidiary = Subsidiary::where('code', 'KSN')->firstOrFail();
+        $admin = User::where('email', 'admin@ks.local')->firstOrFail();
+        $client = Client::create(['subsidiary_id' => $subsidiary->id, 'name' => 'Client Test', 'phone' => $phone, 'email' => $email]);
+        $sale = Sale::create([
+            'subsidiary_id' => $subsidiary->id, 'client_id' => $client->id,
+            'intent' => SaleIntent::QUOTE->value, 'status' => SaleStatus::DRAFT->value,
+            'number' => 'PRO-KSN-2026-'.random_int(100000, 999999), 'issue_date' => now()->toDateString(),
+            'subtotal' => 1000, 'tax_total' => 0, 'total' => 1000, 'created_by' => $admin->id,
+        ]);
+        $sale->lines()->create(['description' => 'Prestation', 'quantity' => 1, 'unit_price' => 1000, 'line_subtotal' => 1000, 'line_total' => 1000]);
+
+        return $sale;
+    }
+
+    public function test_quote_can_be_sent_via_whatsapp_and_is_marked_sent(): void
+    {
+        $this->seed();
+        $admin = User::where('email', 'admin@ks.local')->firstOrFail();
+        $sale = $this->makeQuote('622 12 34 56');
+
+        $response = $this->actingAs($admin)->post(route('sales.send', $sale), ['channel' => 'whatsapp']);
+
+        $response->assertRedirectContains('https://wa.me/224622123456?text=');
+        $this->assertSame(SaleStatus::SENT, $sale->fresh()->status);
+    }
+
+    public function test_whatsapp_send_requires_a_phone_number(): void
+    {
+        $this->seed();
+        $admin = User::where('email', 'admin@ks.local')->firstOrFail();
+        $sale = $this->makeQuote(null);
+
+        $this->actingAs($admin)->post(route('sales.send', $sale), ['channel' => 'whatsapp'])->assertSessionHasErrors('send');
+        $this->assertSame(SaleStatus::DRAFT, $sale->fresh()->status);
+    }
+
+    public function test_email_send_is_refused_when_mailer_is_log(): void
+    {
+        $this->seed();
+        config(['mail.default' => 'log']);
+        $admin = User::where('email', 'admin@ks.local')->firstOrFail();
+        $sale = $this->makeQuote('622123456', 'c@example.com');
+
+        $this->actingAs($admin)->post(route('sales.send', $sale), ['channel' => 'email'])->assertSessionHasErrors('send');
+        $this->assertSame(SaleStatus::DRAFT, $sale->fresh()->status);
+    }
 }
